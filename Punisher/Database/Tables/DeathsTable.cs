@@ -31,7 +31,7 @@ public class DeathsTable
     
     public void InsertDeath(int userId, DateTime dateOccurred, string deathReason)
     {
-        _db.Query("INSERT INTO Punisher_Deaths (UserID, DateOccurred, DeathReason) VALUES (@0, @1, @2)", userId, dateOccurred, deathReason);
+        _db.Query("INSERT INTO Punisher_Deaths (UserID, DateOccurred, DeathReasonJson) VALUES (@0, @1, @2)", userId, dateOccurred, deathReason);
     }
     
     public void DeleteDeath(int id)

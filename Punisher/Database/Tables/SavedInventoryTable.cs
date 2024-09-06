@@ -21,7 +21,7 @@ public class SavedInventoryTable
                 ? (IQueryBuilder)new SqliteQueryCreator()
                 : new MysqlQueryCreator());
 
-        var table = new SqlTable("Punisher_SavedInventories",
+        inventoriesTable = new SqlTable("Punisher_SavedInventories",
             new SqlColumn("Account", MySqlDbType.Int32) { Primary = true },
             new SqlColumn("Health", MySqlDbType.Int32),
             new SqlColumn("MaxHealth", MySqlDbType.Int32),
@@ -283,7 +283,9 @@ public class SavedInventoryTable
         PlayerData playerData = data;
 
         if (!player.IsLoggedIn)
+        {
             return false;
+        }
 
         if (player.HasPermission(Permissions.bypassssc))
         {

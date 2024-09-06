@@ -11,6 +11,7 @@ public class PunisherDatabase
     
     public DeathsTable Deaths { get; set; }
     public SavedInventoryTable SavedInventory { get; set; }
+    public BanTrackingTable BanTracking { get; set; }
     
     public PunisherDatabase(IDbConnection db)
     {
@@ -23,6 +24,6 @@ public class PunisherDatabase
 
         Deaths = new DeathsTable(db);
         SavedInventory = new SavedInventoryTable(db);
-        
+        BanTracking = new BanTrackingTable(db);
     }
 }

@@ -1,4 +1,6 @@
 ﻿using System.Data;
+using System.Runtime.CompilerServices;
+using GetText;
 using Microsoft.Data.Sqlite;
 using MySql.Data.MySqlClient;
 using Newtonsoft.Json;
@@ -8,6 +10,7 @@ using Punisher.Database.Models;
 using Terraria;
 using TerrariaApi.Server;
 using TShockAPI;
+using TShockAPI.DB;
 
 namespace Punisher;
 
@@ -59,62 +62,63 @@ public class Punisher : TerrariaPlugin
             }
             default: // sqlite
             {
-                db = new SqliteConnection("Data Source=" + Path.Combine(TShock.SavePath, "RankSystem.sqlite"));
+                db = new SqliteConnection("Data Source=" + Path.Combine(TShock.SavePath, "Punisher.sqlite"));
                 break;
             }
         }
 
         Database = new PunisherDatabase(db);
-        
-        
+
+
         GetDataHandlers.KillMe += OnKillMe;
-        
+
         ServerApi.Hooks.NpcStrike.Register(this, OnNpcStrike);
     }
-    
+
     private void OnNpcStrike(NpcStrikeEventArgs e)
     {
         if (Configuration is null)
         {
             return;
         }
-        
+
         // get the player who struck the NPC
         var tsPlayer = TShock.Players[e.Player.whoAmI];
 
-        if(tsPlayer is null) return;
-        
+        if (tsPlayer is null) return;
+
         // get the player's account
         var account = tsPlayer.Account;
-        
-        if(account is null) return;
-        
+
+        if (account is null) return;
+
         var weapon = tsPlayer.SelectedItem;
 
-        if(weapon is null) return;
-        
+        if (weapon is null) return;
+
         // init weapon information
         WeaponInformation weaponInformation = new WeaponInformation(weapon.netID, tsPlayer.TPlayer);
-                
+
         // add up the modifiers of the armor & accessories
         foreach (var item in tsPlayer.TPlayer.armor)
         {
             if (item.netID == 0) continue;
-                    
+
             Item item1 = new Item();
             item1.SetDefaults(item.netID);
-                    
+
             weaponInformation.ApplyDamageModifier();
         }
-                
+
         // is it over the threshold?
         if (weaponInformation.OverThreshold(e.Damage))
         {
-            TShock.Log.ConsoleInfo($"{tsPlayer.Name} has struck an NPC with a weapon over the threshold. Base damage: {weaponInformation.GetBaseDamage()}, Modified damage: {weaponInformation.GetModifiedDamage()}, Dealt damage: {e.Damage}");
+            TShock.Log.ConsoleInfo(
+                $"{tsPlayer.Name} has struck an NPC with a weapon over the threshold. Base damage: {weaponInformation.GetBaseDamage()}, Modified damage: {weaponInformation.GetModifiedDamage()}, Dealt damage: {e.Damage}");
 
             if (Configuration.BanOnCheatDetection)
             {
-                tsPlayer.Ban(Configuration.BanReason, "Punisher Anti-Cheat");
+                BanUser(tsPlayer, Configuration.BanReason, "Punisher Anti-Cheat", true);
             }
             else
             {
@@ -125,10 +129,62 @@ public class Punisher : TerrariaPlugin
         }
         else
         {
-            TShock.Log.ConsoleInfo($"{tsPlayer.Name} has struck an NPC with a weapon under the threshold. Base damage: {weaponInformation.GetBaseDamage()}, Modified damage: {weaponInformation.GetModifiedDamage()}, Dealt damage: {e.Damage}");
+            TShock.Log.ConsoleInfo(
+                $"{tsPlayer.Name} has struck an NPC with a weapon under the threshold. Base damage: {weaponInformation.GetBaseDamage()}, Modified damage: {weaponInformation.GetModifiedDamage()}, Dealt damage: {e.Damage}");
+        }
+    }
+
+    public void BanUser(TSPlayer player, string reason, string adminUserName, bool cheater)
+    {
+        BanManager bans = TShock.Bans;
+        var interpolatedStringHandler = new DefaultInterpolatedStringHandler(0, 2);
+        DateTime now = DateTime.UtcNow;
+        DateTime then = cheater ? DateTime.MaxValue : now.AddHours(Configuration?.BanDurationInHours ?? 5);
+
+        if (player.IsLoggedIn && player.HasPermission("punisher.admin"))
+        {
+            // only ban account if admin
+            interpolatedStringHandler.AppendFormatted<Identifier>(Identifier.Account);
+            interpolatedStringHandler.AppendFormatted(player.Account.Name);
+            string stringAndClear3 = interpolatedStringHandler.ToStringAndClear();
+            bans.InsertBan(stringAndClear3, reason, adminUserName, now, then);
+        }
+        else
+        {
+            // ban account, ip, and uuid
+            interpolatedStringHandler.AppendFormatted<Identifier>(Identifier.Account);
+            interpolatedStringHandler.AppendFormatted(player.Account.Name);
+            string stringAndClear3 = interpolatedStringHandler.ToStringAndClear();
+
+            interpolatedStringHandler.AppendFormatted<Identifier>(Identifier.IP);
+            interpolatedStringHandler.AppendFormatted(player.IP);
+            string stringAndClear4 = interpolatedStringHandler.ToStringAndClear();
+
+            interpolatedStringHandler.AppendFormatted<Identifier>(Identifier.UUID);
+            interpolatedStringHandler.AppendFormatted(player.UUID);
+            string stringAndClear5 = interpolatedStringHandler.ToStringAndClear();
+
+            bans.InsertBan(stringAndClear3, reason, adminUserName, now, then);
+            bans.InsertBan(stringAndClear4, reason, adminUserName, now, then);
+            bans.InsertBan(stringAndClear5, reason, adminUserName, now, then);
+        }
+
+        if (string.IsNullOrWhiteSpace(adminUserName))
+        {
+            TSPlayer.All.SendInfoMessage("{0} was banned for '{1}'.", (object)player.Name, (object)reason);
+        }
+        else
+        {
+            TSPlayer.All.SendInfoMessage("{0} banned {1} for '{2}'.",
+                (object)adminUserName, (object)player.Name, (object)reason);
         }
         
+        Database.SavedInventory.InsertSpecificPlayerData(player, player.PlayerData);
+        TShock.CharacterDB.RemovePlayer(player.Account.ID);
         
+        player.Disconnect("Banned: " + reason);
+        Database.BanTracking.InsertBan(player.Account.ID, now, (cheater ? -1 : Configuration?.BanDurationInHours ?? 1),
+            cheater);
     }
 
     private void OnKillMe(object? sender, GetDataHandlers.KillMeEventArgs e)
@@ -138,65 +194,72 @@ public class Punisher : TerrariaPlugin
             return;
         }
         
+        TShock.Log.ConsoleInfo($"Player {e.PlayerId} has died.");
+
         // get the player who died
-        var player = TShock.Players[e.PlayerId];
-        
+        var player = e.Player;
+
         // get the player's account
-        var account = player?.Account;
+        if (!player.IsLoggedIn)
+        {
+            TShock.Log.ConsoleInfo($"Player {e.PlayerId} is not logged in.");
+            return;
+        }
         
-        if(account is null) return;
-        
+        var account = player.Account;
+
         // get the player's death reason
         var deathReason = new DeathReason(e.PlayerDeathReason, e.Damage);
-        
+
         // insert the death into the database
         Database.Deaths.InsertDeath(account.ID, DateTime.Now, JsonConvert.SerializeObject(deathReason));
 
+        TShock.Log.ConsoleInfo($"Player {e.PlayerId} has died from {deathReason.DeathReasonType}.");
         if (deathReason.DeathReasonType == DeathReasonType.Pvp)
         {
             if (deathReason.AccountId is not null)
             {
                 // get the killer's account
-                var killerAccount = TShock.UserAccounts.GetUserAccountByID((int) deathReason.AccountId);
-                
+                var killerAccount = TShock.UserAccounts.GetUserAccountByID((int)deathReason.AccountId);
+
                 if (killerAccount is null) return;
-                
+
                 // get the killer's player
                 var killerPlayer = TShock.Players.FirstOrDefault(p => p?.Account.ID == killerAccount.ID);
-                
+
                 if (killerPlayer is null) return;
-                
+
                 // what weapon is the killer using?
                 var weapon = killerPlayer.TPlayer.inventory[killerPlayer.TPlayer.selectedItem];
-                
+
                 // init weapon information
                 WeaponInformation weaponInformation = new WeaponInformation(weapon.netID, killerPlayer.TPlayer);
-                
+
                 // add up the modifiers of the armor & accessories
                 foreach (var item in killerPlayer.TPlayer.armor)
                 {
                     if (item.netID == 0) continue;
-                    
+
                     Item item1 = new Item();
                     item1.SetDefaults(item.netID);
-                    
+
                     weaponInformation.ApplyDamageModifier();
                 }
-                
+
                 // is it over the threshold?
                 if (weaponInformation.OverThreshold(e.Damage))
                 {
                     // ban the killer
                     if (Configuration.BanOnCheatDetection)
                     {
-                        killerPlayer.Ban(Configuration.BanReason, "Punisher Anti-Cheat");
+                        BanUser(killerPlayer, Configuration.BanReason, "Punisher Anti-Cheat", true);
                     }
                     else
                     {
                         killerPlayer.Kick("Detected by Punisher Anti-Cheat.", true, true);
                     }
-                    e.Damage = (short)weaponInformation.GetModifiedDamage();
 
+                    e.Damage = (short)weaponInformation.GetModifiedDamage();
                 }
                 else
                 {
@@ -204,12 +267,19 @@ public class Punisher : TerrariaPlugin
                     if (Configuration.EnableBan)
                     {
                         // if ssc, save the inventory to OUR database, then wipe on tshock-side
-                        Database.SavedInventory.InsertSpecificPlayerData(player, player.PlayerData);
-                        TShock.CharacterDB.RemovePlayer(player.Account.ID);
-                        
-                        player.Ban(string.Format(Configuration.BanReason, Configuration.BanDurationInHours), "Punisher Hardcore");
+                        BanUser(player, string.Format(Configuration.BanReason, Configuration.BanDurationInHours),
+                            "Punisher Hardcore", false);
                     }
                 }
+            }
+        }
+        else
+        {
+            // ban the victim for hardcore
+            if (Configuration.EnableBan)
+            {
+                BanUser(player, string.Format(Configuration.BanReason, Configuration.BanDurationInHours),
+                    "Punisher Hardcore", false);
             }
         }
     }
