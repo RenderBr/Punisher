@@ -25,6 +25,7 @@ public class Punisher : TerrariaPlugin
     public static PunisherConfiguration? Configuration { get; set; }
     public static PunisherDatabase Database { get; set; }
 
+    public static DateTime LastUnbanTime { get; set; } = DateTime.MinValue; 
     public Punisher(Main game) : base(game)
     {
     }
@@ -73,6 +74,21 @@ public class Punisher : TerrariaPlugin
         GetDataHandlers.KillMe += OnKillMe;
 
         ServerApi.Hooks.NpcStrike.Register(this, OnNpcStrike);
+        ServerApi.Hooks.GameUpdate.Register(this, OnGameUpdate);
+    }
+
+    private void OnGameUpdate(EventArgs args)
+    {
+        if (Configuration is null)
+        {
+            return;
+        }
+
+        if (DateTime.Now.Subtract(LastUnbanTime).TotalHours >= Configuration.BanDurationInHours)
+        {
+            Database.BanTracking.UnbanLegitBans();
+            LastUnbanTime = DateTime.Now;
+        }   
     }
 
     private void OnNpcStrike(NpcStrikeEventArgs e)
@@ -139,7 +155,9 @@ public class Punisher : TerrariaPlugin
         BanManager bans = TShock.Bans;
         var interpolatedStringHandler = new DefaultInterpolatedStringHandler(0, 2);
         DateTime now = DateTime.UtcNow;
-        DateTime then = cheater ? DateTime.MaxValue : now.AddHours(Configuration?.BanDurationInHours ?? 5);
+        DateTime then = DateTime.MaxValue;
+
+        List<AddBanResult> banList = new();
 
         if (player.IsLoggedIn && player.HasPermission("punisher.admin"))
         {
@@ -147,7 +165,7 @@ public class Punisher : TerrariaPlugin
             interpolatedStringHandler.AppendFormatted<Identifier>(Identifier.Account);
             interpolatedStringHandler.AppendFormatted(player.Account.Name);
             string stringAndClear3 = interpolatedStringHandler.ToStringAndClear();
-            bans.InsertBan(stringAndClear3, reason, adminUserName, now, then);
+            banList.Add(bans.InsertBan(stringAndClear3, reason, adminUserName, now, then));
         }
         else
         {
@@ -164,9 +182,12 @@ public class Punisher : TerrariaPlugin
             interpolatedStringHandler.AppendFormatted(player.UUID);
             string stringAndClear5 = interpolatedStringHandler.ToStringAndClear();
 
-            bans.InsertBan(stringAndClear3, reason, adminUserName, now, then);
-            bans.InsertBan(stringAndClear4, reason, adminUserName, now, then);
-            bans.InsertBan(stringAndClear5, reason, adminUserName, now, then);
+            banList.AddRange(new[]
+            {
+                bans.InsertBan(stringAndClear3, reason, adminUserName, now, then),
+                bans.InsertBan(stringAndClear4, reason, adminUserName, now, then),
+                bans.InsertBan(stringAndClear5, reason, adminUserName, now, then)
+            });
         }
 
         if (string.IsNullOrWhiteSpace(adminUserName))
@@ -178,13 +199,16 @@ public class Punisher : TerrariaPlugin
             TSPlayer.All.SendInfoMessage("{0} banned {1} for '{2}'.",
                 (object)adminUserName, (object)player.Name, (object)reason);
         }
-        
+
         Database.SavedInventory.InsertSpecificPlayerData(player, player.PlayerData);
         TShock.CharacterDB.RemovePlayer(player.Account.ID);
-        
+
         player.Disconnect("Banned: " + reason);
-        Database.BanTracking.InsertBan(player.Account.ID, now, (cheater ? -1 : Configuration?.BanDurationInHours ?? 1),
-            cheater);
+
+        string banIds = string.Join(", ", banList.Select(b => b.Ban.TicketNumber));
+
+        Database.BanTracking.InsertBan(player.Account.ID, now, now.Subtract(then).Hours,
+            cheater, banIds);
     }
 
     private void OnKillMe(object? sender, GetDataHandlers.KillMeEventArgs e)
@@ -193,7 +217,7 @@ public class Punisher : TerrariaPlugin
         {
             return;
         }
-        
+
         TShock.Log.ConsoleInfo($"Player {e.PlayerId} has died.");
 
         // get the player who died
@@ -205,7 +229,7 @@ public class Punisher : TerrariaPlugin
             TShock.Log.ConsoleInfo($"Player {e.PlayerId} is not logged in.");
             return;
         }
-        
+
         var account = player.Account;
 
         // get the player's death reason

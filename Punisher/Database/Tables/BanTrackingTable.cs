@@ -1,5 +1,7 @@
 using System.Data;
 using MySql.Data.MySqlClient;
+using Punisher.Database.Models;
+using TShockAPI;
 using TShockAPI.DB;
 
 namespace Punisher.Tables;
@@ -24,14 +26,44 @@ public class BanTrackingTable
             new SqlColumn("UserID", MySqlDbType.Int32),
             new SqlColumn("DateOccurred", MySqlDbType.DateTime),
             new SqlColumn("BanDuration", MySqlDbType.Int32),
+            new SqlColumn("BanIds", MySqlDbType.Text),
             new SqlColumn("IsCheater", MySqlDbType.Int32));
         
         sqlCreator.EnsureTableStructure(banTrackingTable);
     }
     
-    public void InsertBan(int userId, DateTime dateOccurred, int banDuration, bool isCheater)
+    public void InsertBan(int userId, DateTime dateOccurred, int banDuration, bool isCheater, string banIds)
     {
-        _db.Query("INSERT INTO Punisher_BanTracking (UserID, DateOccurred, BanDuration, IsCheater) VALUES (@0, @1, @2, @3)", userId, dateOccurred, banDuration, isCheater ? 1 : 0);
+        _db.Query("INSERT INTO Punisher_BanTracking (UserID, DateOccurred, BanDuration, IsCheater, BanIds) VALUES (@0, @1, @2, @3, @4)", userId, dateOccurred, banDuration, isCheater ? 1 : 0);
+    }
+    
+    public List<BanTracking> GetAllLegitBans()
+    {
+        var result = _db.QueryReader("SELECT * FROM Punisher_BanTracking WHERE IsCheater = 0");
+        
+        var bans = new List<BanTracking>();
+        while (result.Read())
+        {
+            bans.Add(new BanTracking(result.Get<int>("UserID"), result.Get<DateTime>("DateOccurred"), result.Get<int>("BanDuration"), false, result.Get<string>("BanIds")));
+        }
+        
+        return bans;
+    }
+    
+    public void UnbanLegitBans()
+    {
+        var bans = GetAllLegitBans();
+        
+        foreach (var ban in bans)
+        {
+            var ids = ban.BanIds.Split(',');
+            foreach (var id in ids)
+            {
+                TShock.Bans.RemoveBan(Convert.ToInt32(id));
+            }
+            
+            DeleteBans(ban.UserID);
+        }
     }
     
     public void DeleteBan(int id)
