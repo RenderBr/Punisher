@@ -34,7 +34,7 @@ public class BanTrackingTable
     
     public void InsertBan(int userId, DateTime dateOccurred, int banDuration, bool isCheater, string banIds)
     {
-        _db.Query("INSERT INTO Punisher_BanTracking (UserID, DateOccurred, BanDuration, IsCheater, BanIds) VALUES (@0, @1, @2, @3, @4)", userId, dateOccurred, banDuration, isCheater ? 1 : 0);
+        _db.Query("INSERT INTO Punisher_BanTracking (UserID, DateOccurred, BanDuration, IsCheater, BanIds) VALUES (@0, @1, @2, @3, @4)", userId, dateOccurred, banDuration, isCheater ? 1 : 0, banIds);
     }
     
     public List<BanTracking> GetAllLegitBans()
@@ -56,6 +56,10 @@ public class BanTrackingTable
         
         foreach (var ban in bans)
         {
+            if(string.IsNullOrWhiteSpace(ban.BanIds))
+            {
+                continue;
+            }
             var ids = ban.BanIds.Split(',');
             foreach (var id in ids)
             {

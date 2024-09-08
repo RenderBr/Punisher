@@ -70,11 +70,16 @@ public class Punisher : TerrariaPlugin
 
         Database = new PunisherDatabase(db);
 
-
         GetDataHandlers.KillMe += OnKillMe;
 
         ServerApi.Hooks.NpcStrike.Register(this, OnNpcStrike);
         ServerApi.Hooks.GameUpdate.Register(this, OnGameUpdate);
+
+        TShockAPI.Hooks.GeneralHooks.ReloadEvent += (x) =>
+        {
+            Configuration = PunisherConfiguration.Read();
+            x.Player.SendInfoMessage("Punisher configuration reloaded.");
+        };
     }
 
     private void OnGameUpdate(EventArgs args)
@@ -127,11 +132,8 @@ public class Punisher : TerrariaPlugin
         }
 
         // is it over the threshold?
-        if (weaponInformation.OverThreshold(e.Damage))
+        if (weaponInformation.OverThreshold(e.Damage) && Configuration.EnableAntiCheat)
         {
-            TShock.Log.ConsoleInfo(
-                $"{tsPlayer.Name} has struck an NPC with a weapon over the threshold. Base damage: {weaponInformation.GetBaseDamage()}, Modified damage: {weaponInformation.GetModifiedDamage()}, Dealt damage: {e.Damage}");
-
             if (Configuration.BanOnCheatDetection)
             {
                 BanUser(tsPlayer, Configuration.BanReason, "Punisher Anti-Cheat", true);
@@ -142,11 +144,6 @@ public class Punisher : TerrariaPlugin
             }
 
             e.Damage = weaponInformation.GetModifiedDamage();
-        }
-        else
-        {
-            TShock.Log.ConsoleInfo(
-                $"{tsPlayer.Name} has struck an NPC with a weapon under the threshold. Base damage: {weaponInformation.GetBaseDamage()}, Modified damage: {weaponInformation.GetModifiedDamage()}, Dealt damage: {e.Damage}");
         }
     }
 
@@ -217,16 +214,13 @@ public class Punisher : TerrariaPlugin
         {
             return;
         }
-
-        TShock.Log.ConsoleInfo($"Player {e.PlayerId} has died.");
-
+        
         // get the player who died
         var player = e.Player;
 
         // get the player's account
         if (!player.IsLoggedIn)
         {
-            TShock.Log.ConsoleInfo($"Player {e.PlayerId} is not logged in.");
             return;
         }
 
@@ -238,7 +232,6 @@ public class Punisher : TerrariaPlugin
         // insert the death into the database
         Database.Deaths.InsertDeath(account.ID, DateTime.Now, JsonConvert.SerializeObject(deathReason));
 
-        TShock.Log.ConsoleInfo($"Player {e.PlayerId} has died from {deathReason.DeathReasonType}.");
         if (deathReason.DeathReasonType == DeathReasonType.Pvp)
         {
             if (deathReason.AccountId is not null)
@@ -271,7 +264,7 @@ public class Punisher : TerrariaPlugin
                 }
 
                 // is it over the threshold?
-                if (weaponInformation.OverThreshold(e.Damage))
+                if (weaponInformation.OverThreshold(e.Damage) && Configuration.EnableAntiCheat)
                 {
                     // ban the killer
                     if (Configuration.BanOnCheatDetection)

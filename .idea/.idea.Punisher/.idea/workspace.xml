@@ -5,9 +5,11 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="0408879d-bd62-4622-8a44-3c31f5e15a97" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/Punisher/Database/Models/BanTracking.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/.idea.Punisher/.idea/copilot/chatSessions/xd.lck" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.Punisher/.idea/copilot/chatSessions/xd.lck" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/.idea.Punisher/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.Punisher/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Punisher/Database/Tables/BanTrackingTable.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Punisher/Database/Tables/BanTrackingTable.cs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Punisher/Punisher.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Punisher/Punisher.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Punisher/WeaponInformation.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Punisher/WeaponInformation.cs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -18,6 +20,8 @@
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="HighlightingSettingsPerFile">
+    <setting file="file://$USER_HOME$/AppData/Local/Symbols/src/dotnet/runtime/492abbeef0d8a6ea902ac8f90ed339c7b1d18bf4/src/libraries/System.Private.CoreLib/src/System/Int32.cs" root0="SKIP_HIGHLIGHTING" />
+    <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/DecompilerCache/decompiler/d654b5ec3b254f06a1caab79a9e992ea12ad800/01/b0ef8eb5/Player.cs" root0="SKIP_HIGHLIGHTING" />
     <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/DecompilerCache/decompiler/d654b5ec3b254f06a1caab79a9e992ea12ad800/ea/caed4225/Item.cs" root0="SKIP_HIGHLIGHTING" />
   </component>
   <component name="ProjectColorInfo">{
@@ -59,6 +63,7 @@
       <updated>1725719544088</updated>
       <workItem from="1725719546780" duration="545000" />
       <workItem from="1725737982691" duration="586000" />
+      <workItem from="1725805178693" duration="1709000" />
     </task>
     <servers />
   </component>

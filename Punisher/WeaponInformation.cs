@@ -41,13 +41,14 @@ public class WeaponInformation
     
     public bool OverThreshold(int damage)
     {
-        TShock.Log.ConsoleInfo($"Threshold: {Punisher.Configuration?.Threshold}");
+        TShock.Log.Debug($"Threshold: {Punisher.Configuration?.Threshold}, Dealt damage: {damage}");
         var threshold = Punisher.Configuration?.Threshold / 100f;
         
         if (threshold is null) return false;
 
-        var thresholdDmg = GetModifiedDamage() * threshold;
-        TShock.Log.ConsoleInfo($"Threshold damage: {thresholdDmg}");
+        var modifiedDamage = GetModifiedDamage();
+        var thresholdDmg = modifiedDamage * threshold;
+        TShock.Log.Debug($"Threshold damage: {thresholdDmg}, modified damage after accs should be {modifiedDamage}");
         
         return damage > GetModifiedDamage()*threshold;
     }
